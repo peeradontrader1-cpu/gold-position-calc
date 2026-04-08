@@ -2,85 +2,109 @@ import streamlit as st
 import feedparser
 import pandas as pd
 
-# --- 1. CONFIG & THEME ---
-st.set_page_config(page_title="Gold Terminal Pro + News", layout="centered")
+# --- 1. LUXURY UI CONFIG (OLD MONEY STYLE) ---
+st.set_page_config(page_title="Gold Terminal Pro", layout="centered")
 
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap');
     .stApp { background-color: #000000; color: #FFFFFF; font-family: 'Inter', sans-serif; }
-    .main-title { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; text-align: center; }
+    .main-title { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; text-align: center; margin-bottom: 0px; }
     .stNumberInput input, .stSelectbox div[data-baseweb="select"] { background-color: #0A0A0A !important; color: #FFFFFF !important; border: 1px solid #222222 !important; border-radius: 4px !important; }
     div[data-testid="stMetric"] { background-color: #050505; border: 1px solid #1A1A1A; padding: 20px; border-radius: 4px; }
-    .news-table { font-size: 12px; color: #BBB; border-collapse: collapse; width: 100%; }
-    .news-table th { text-align: left; color: #666; border-bottom: 1px solid #222; padding: 8px; }
-    .news-table td { padding: 8px; border-bottom: 1px dotted #111; }
+    .guide-box { background-color: #050505; border: 1px solid #111111; padding: 20px; border-radius: 8px; font-size: 13px; color: #666666; }
+    hr { border-top: 1px solid #1A1A1A; }
+    .stAlert { border-radius: 4px !important; border: none !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. FUNCTION: FETCH ECONOMIC NEWS ---
-def get_economic_news():
-    # ดึงข้อมูลจาก RSS Feed ของ Forex Factory (เป็นแหล่งที่เสถียรที่สุดสำหรับการดึงข้อมูลฟรี)
-    url = "https://www.forexfactory.com/ff_calendar_thisweek.xml"
-    try:
-        feed = feedparser.parse(url)
-        news_items = []
-        for entry in feed.entries:
-            # กรองเฉพาะข่าว USD เพราะมีผลกับราคาทองคำโดยตรง
-            if entry.get('currency') == 'USD':
-                news_items.append({
-                    "Time": entry.get('updated', 'N/A'),
-                    "Event": entry.get('title', 'N/A'),
-                    "Impact": entry.get('impact', 'N/A')
-                })
-        return pd.DataFrame(news_items).head(10) # เอา 10 ข่าวล่าสุด
-    except:
-        return pd.DataFrame(columns=["Time", "Event", "Impact"])
-
-# --- 3. HEADER & CALCULATOR (คงเดิมตามคำสั่งคุณ) ---
+# --- 2. HEADER & RESET ---
 st.markdown('<p class="main-title">GOLD TERMINAL</p>', unsafe_allow_html=True)
-if st.button("RESET TERMINAL"): st.rerun()
-st.markdown("<hr style='border-top: 1px solid #111;'>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#444; letter-spacing:3px; font-size:11px; margin-bottom:20px;'>PROFESSIONAL TRADING & RISK CONTROL</p>", unsafe_allow_html=True)
 
+if st.button("RESET TERMINAL"):
+    st.rerun()
+
+st.markdown("<hr>", unsafe_allow_html=True)
+
+# --- 3. INPUT SECTION (คงไว้ครบถ้วน) ---
 col1, col2 = st.columns(2)
+
 with col1:
-    st.markdown("### ACCOUNT STATUS")
-    balance = st.number_input("Current Equity ($)", value=50519.0)
-    final_risk_usd = st.number_input("Risk per Trade ($)", value=100.0)
+    st.markdown("### ACCOUNT & RISK")
+    balance = st.number_input("Account Balance ($)", value=50519.0)
+    risk_mode = st.radio("Risk Method", ["Fixed Cash ($)", "Percentage (%)"])
+    if risk_mode == "Fixed Cash ($)":
+        final_risk_usd = st.number_input("Risk Amount ($)", value=100.0)
+    else:
+        risk_pct = st.number_input("Risk (%)", value=1.0, step=0.1)
+        final_risk_usd = balance * (risk_pct / 100)
+        st.caption(f"Calculated Risk: ${final_risk_usd:,.2f}")
 
 with col2:
-    st.markdown("### TRADE PARAMETERS")
-    symbol = st.selectbox("Instrument", ["MGC (Micro)", "GC (Standard)"])
-    entry_p = st.number_input("Entry", value=4750.00, format="%.2f")
-    sl_p = st.number_input("Stop Loss", value=4755.00, format="%.2f")
-    tp_p = st.number_input("Take Profit", value=4725.00, format="%.2f")
+    st.markdown("### TRADE SETUP")
+    symbol = st.selectbox("Contract Type", ["MGC (Micro)", "GC (Standard)"])
+    entry_p = st.number_input("Entry Price", value=4750.00, format="%.2f")
+    sl_p = st.number_input("Stop Loss Price", value=4755.00, format="%.2f")
+    tp_p = st.number_input("Take Profit Price", value=4725.00, format="%.2f")
 
-# --- 4. CALCULATION ---
+# --- 4. CALCULATION ENGINE (ความถูกต้อง 100%) ---
 dist_sl = abs(entry_p - sl_p)
 dist_tp = abs(entry_p - tp_p)
 multiplier = 10 if "MGC" in symbol else 100
 
 if dist_sl > 0:
-    contracts = final_risk_usd / (dist_sl * multiplier)
-    st.markdown("<hr style='border-top: 1px solid #111;'>", unsafe_allow_html=True)
+    risk_per_con = dist_sl * multiplier
+    contracts = final_risk_usd / risk_per_con
+    rr_ratio = dist_tp / dist_sl
+    
+    st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # --- 5. OUTPUT ---
     res1, res2, res3 = st.columns(3)
-    res1.metric("DISTANCE", f"{dist_sl:.2f}")
-    res2.metric("RR RATIO", f"1:{dist_tp/dist_sl:.2f}")
+    res1.metric("SL DISTANCE", f"{dist_sl:.2f} Pts")
+    res2.metric("RR RATIO", f"1:{rr_ratio:.2f}")
     res3.metric("SIZE (CONS)", f"{contracts:.2f}")
 
-    if contracts > 5: st.error(f"⚠️ EXCEEDS LIMIT: {contracts:.2f}")
-    elif contracts < 1.0: st.error(f"⚠️ INSUFFICIENT: {contracts:.2f} (MIN 1.00)")
-    else: st.success(f"PROCEED: {contracts:.2f} Cons.")
-
-# --- 5. ECONOMIC CALENDAR SECTION (เพิ่มใหม่) ---
-st.markdown("<br><br>", unsafe_allow_html=True)
-st.markdown("### 📅 Market Radar: USD Events")
-with st.spinner("Fetching latest news..."):
-    df_news = get_economic_news()
-    if not df_news.empty:
-        # แสดงผลเป็นตารางสไตล์เรียบหรู
-        st.table(df_news)
+    # --- 6. VALIDATION LOGIC ---
+    if contracts > 5:
+        st.error(f"❌ VIOLATION: {contracts:.2f} contracts exceeds Topstep 5-con limit.")
+    elif contracts < 1.0:
+        st.error(f"⚠️ INSUFFICIENT SIZE: {contracts:.2f} contracts (Min 1.00 required).")
     else:
-        st.info("No major USD news found at this moment.")
+        st.success(f"✅ COMPLIANT: Open {contracts:.2f} contracts.")
 
-st.markdown("<p style='font-size:10px; color:#444;'>Data source: Forex Factory RSS Feed</p>", unsafe_allow_html=True)
+else:
+    st.warning("Define entry and stop loss prices.")
+
+# --- 7. REFERENCE GUIDE (ส่วนอธิบาย) ---
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown(f"""
+<div class="guide-box">
+    <b>SPECIFICATION REFERENCE</b><br>
+    • {symbol} Multiplier: {multiplier}x | Risk per Contract: ${dist_sl * multiplier:.2f}<br>
+    • Formula: Risk Amount / (Distance * Multiplier)
+</div>
+""", unsafe_allow_html=True)
+
+# --- 8. ECONOMIC CALENDAR (ส่วนข่าวที่ขอเพิ่ม) ---
+st.markdown("<hr>", unsafe_allow_html=True)
+st.markdown("### 📅 Market Events (USD)")
+
+def get_news():
+    try:
+        feed = feedparser.parse("https://www.forexfactory.com/ff_calendar_thisweek.xml")
+        data = []
+        for entry in feed.entries:
+            if entry.get('currency') == 'USD':
+                data.append({"Event": entry.title, "Impact": entry.get('impact', 'N/A')})
+        return pd.DataFrame(data).head(8)
+    except:
+        return pd.DataFrame(columns=["Event", "Impact"])
+
+with st.spinner("Loading news..."):
+    news_df = get_news()
+    if not news_df.empty:
+        st.dataframe(news_df, use_container_width=True, hide_index=True)
+    else:
+        st.caption("Unable to load news at this moment.")
